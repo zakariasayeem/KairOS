@@ -7,6 +7,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { addProject } from '../db/database';
@@ -18,6 +19,7 @@ export default function HomeScreen() {
     if (projectName.trim().length === 0) return;
     addProject(projectName.trim(), '#6C5CE7');
     setProjectName('');
+    Keyboard.dismiss();
   };
 
   return (
