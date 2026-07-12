@@ -4,6 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { DarkTheme, DefaultTheme } from '@react-navigation/native';
 
 import HomeScreen from './screens/HomeScreen';
 import ProjectsScreen from './screens/ProjectsScreen';
@@ -19,7 +20,12 @@ const ProjectsStack = createNativeStackNavigator();
 
 function ProjectsStackScreen() {
   return (
-    <ProjectsStack.Navigator screenOptions={{ headerShown: false }}>
+    <ProjectsStack.Navigator
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: '#0A0A0F' },
+      }}
+    >
       <ProjectsStack.Screen name="ProjectsList" component={ProjectsScreen} />
       <ProjectsStack.Screen name="ProjectDetail" component={ProjectDetailScreen} />
     </ProjectsStack.Navigator>
@@ -28,7 +34,16 @@ function ProjectsStackScreen() {
 
 export default function App() {
   return (
-    <NavigationContainer>
+    <NavigationContainer
+      theme={{
+        ...DarkTheme,
+        colors: {
+          ...DarkTheme.colors,
+          background: '#0A0A0F',
+          card: '#16161D',
+        },
+      }}
+    >
       <StatusBar barStyle="light-content" />
       <Tab.Navigator
         screenOptions={({ route }) => ({
