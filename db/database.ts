@@ -14,3 +14,23 @@ export function initDatabase() {
     );
   `);
 }
+export function addProject(name: string, color: string) {
+  const id = Date.now().toString();
+  const createdAt = new Date().toISOString();
+  db.runSync(
+    `INSERT INTO projects (id, name, color, status, created_at) VALUES (?, ?, ?, 'active', ?);`,
+    [id, name, color, createdAt]
+  );
+  return id;
+}
+
+export function getAllProjects() {
+  return db.getAllSync<{
+    id: string;
+    name: string;
+    color: string;
+    due_date: string | null;
+    status: string;
+    created_at: string;
+  }>('SELECT * FROM projects ORDER BY created_at DESC;');
+}

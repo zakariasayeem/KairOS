@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { addProject, getAllProjects } from '../db/database';
 
 export default function HomeScreen() {
   return (
@@ -15,7 +16,15 @@ export default function HomeScreen() {
         <Text style={styles.cardBody}>No tasks yet</Text>
       </View>
 
-      <TouchableOpacity style={styles.ctaButton} activeOpacity={0.85}>
+      <TouchableOpacity
+        style={styles.ctaButton}
+        activeOpacity={0.85}
+        onPress={() => {
+          addProject('Test Project', '#6C5CE7');
+          const projects = getAllProjects();
+          console.log('Projects in database:', projects);
+        }}
+      >
         <Text style={styles.ctaText}>+ Break down a new goal</Text>
       </TouchableOpacity>
     </SafeAreaView>
