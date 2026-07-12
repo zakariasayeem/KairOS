@@ -1,18 +1,31 @@
 import React from 'react';
-import { initDatabase } from './db/database';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import HomeScreen from './screens/HomeScreen';
 import ProjectsScreen from './screens/ProjectsScreen';
+import ProjectDetailScreen from './screens/ProjectDetailScreen';
 import FocusScreen from './screens/FocusScreen';
 import InsightsScreen from './screens/InsightsScreen';
-
-const Tab = createBottomTabNavigator();
+import { initDatabase } from './db/database';
 
 initDatabase();
+
+const Tab = createBottomTabNavigator();
+const ProjectsStack = createNativeStackNavigator();
+
+function ProjectsStackScreen() {
+  return (
+    <ProjectsStack.Navigator screenOptions={{ headerShown: false }}>
+      <ProjectsStack.Screen name="ProjectsList" component={ProjectsScreen} />
+      <ProjectsStack.Screen name="ProjectDetail" component={ProjectDetailScreen} />
+    </ProjectsStack.Navigator>
+  );
+}
+
 export default function App() {
   return (
     <NavigationContainer>
@@ -35,7 +48,7 @@ export default function App() {
         })}
       >
         <Tab.Screen name="Home" component={HomeScreen} />
-        <Tab.Screen name="Projects" component={ProjectsScreen} />
+        <Tab.Screen name="Projects" component={ProjectsStackScreen} />
         <Tab.Screen name="Focus" component={FocusScreen} />
         <Tab.Screen name="Insights" component={InsightsScreen} />
       </Tab.Navigator>

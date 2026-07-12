@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { getAllProjects } from '../db/database';
 
 type Project = {
@@ -15,6 +15,7 @@ type Project = {
 
 export default function ProjectsScreen() {
   const [projects, setProjects] = useState<Project[]>([]);
+  const navigation = useNavigation<any>();
 
   useFocusEffect(
     useCallback(() => {
@@ -34,10 +35,19 @@ export default function ProjectsScreen() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ marginTop: 16 }}
           renderItem={({ item }) => (
-            <View style={styles.card}>
+            <TouchableOpacity
+              style={styles.card}
+              activeOpacity={0.7}
+              onPress={() =>
+                navigation.navigate('ProjectDetail', {
+                  projectId: item.id,
+                  projectName: item.name,
+                })
+              }
+            >
               <View style={[styles.colorDot, { backgroundColor: item.color }]} />
               <Text style={styles.cardTitle}>{item.name}</Text>
-            </View>
+            </TouchableOpacity>
           )}
         />
       )}
