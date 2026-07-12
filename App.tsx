@@ -1,4 +1,5 @@
 import React from 'react';
+import { initDatabase } from './db/database';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'react-native';
@@ -11,6 +12,7 @@ import InsightsScreen from './screens/InsightsScreen';
 
 const Tab = createBottomTabNavigator();
 
+initDatabase();
 export default function App() {
   return (
     <NavigationContainer>
