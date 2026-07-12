@@ -1,85 +1,42 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  SafeAreaView,
-} from 'react-native';
+import { NavigationContainer } from '@react-navigation/native';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { StatusBar } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+
+import HomeScreen from './screens/HomeScreen';
+import ProjectsScreen from './screens/ProjectsScreen';
+import FocusScreen from './screens/FocusScreen';
+import InsightsScreen from './screens/InsightsScreen';
+
+const Tab = createBottomTabNavigator();
 
 export default function App() {
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Top Bar */}
-      <View style={styles.topBar}>
-        <Text style={styles.appName}>KairOS</Text>
-        <View style={styles.iconPlaceholder} />
-      </View>
-
-      {/* What's Next Card */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>What's Next</Text>
-        <Text style={styles.cardBody}>No tasks yet</Text>
-      </View>
-
-      {/* Bottom CTA */}
-      <TouchableOpacity style={styles.ctaButton} activeOpacity={0.85}>
-        <Text style={styles.ctaText}>+ Break down a new goal</Text>
-      </TouchableOpacity>
-    </SafeAreaView>
+    <NavigationContainer>
+      <StatusBar barStyle="light-content" />
+      <Tab.Navigator
+        screenOptions={({ route }) => ({
+          headerShown: false,
+          tabBarStyle: { backgroundColor: '#16161D', borderTopColor: '#1F1F29' },
+          tabBarActiveTintColor: '#6C5CE7',
+          tabBarInactiveTintColor: '#A5ABB6',
+          tabBarIcon: ({ color, size }) => {
+            const icons: Record<string, keyof typeof Ionicons.glyphMap> = {
+              Home: 'grid-outline',
+              Projects: 'layers-outline',
+              Focus: 'time-outline',
+              Insights: 'bar-chart-outline',
+            };
+            return <Ionicons name={icons[route.name]} size={size} color={color} />;
+          },
+        })}
+      >
+        <Tab.Screen name="Home" component={HomeScreen} />
+        <Tab.Screen name="Projects" component={ProjectsScreen} />
+        <Tab.Screen name="Focus" component={FocusScreen} />
+        <Tab.Screen name="Insights" component={InsightsScreen} />
+      </Tab.Navigator>
+    </NavigationContainer>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0A0A0F',
-    paddingHorizontal: 16,
-    justifyContent: 'space-between',
-  },
-  topBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 16,
-  },
-  appName: {
-    color: '#F5F5F7',
-    fontSize: 22,
-    fontWeight: '600',
-  },
-  iconPlaceholder: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#16161D',
-  },
-  card: {
-    backgroundColor: '#16161D',
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 24,
-  },
-  cardTitle: {
-    color: '#F5F5F7',
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  cardBody: {
-    color: '#A5ABB6',
-    fontSize: 15,
-  },
-  ctaButton: {
-    backgroundColor: '#6C5CE7',
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  ctaText: {
-    color: '#F5F5F7',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-});
