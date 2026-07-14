@@ -15,13 +15,18 @@ export function initDatabase() {
     CREATE TABLE IF NOT EXISTS subtasks (
       id TEXT PRIMARY KEY NOT NULL,
       project_id TEXT NOT NULL,
+      parent_subtask_id TEXT,
       title TEXT NOT NULL,
       is_complete INTEGER NOT NULL DEFAULT 0,
       order_index INTEGER NOT NULL,
+      difficulty TEXT,
+      est_minutes INTEGER,
+      source TEXT NOT NULL DEFAULT 'manual',
       created_at TEXT NOT NULL
     );
   `);
 }
+
 export function addProject(name: string, color: string) {
   const id = Date.now().toString();
   const createdAt = new Date().toISOString();
@@ -42,12 +47,17 @@ export function getAllProjects() {
     created_at: string;
   }>('SELECT * FROM projects ORDER BY created_at DESC;');
 }
-export function addSubtask(projectId: string, title: string) {
+
+export function addSubtask(
+  projectId: string,
+  title: string,
+  parentSubtaskId: string | null = null
+) {
   const id = Date.now().toString();
   const createdAt = new Date().toISOString();
   db.runSync(
-    `INSERT INTO subtasks (id, project_id, title, is_complete, order_index, created_at) VALUES (?, ?, ?, 0, 0, ?);`,
-    [id, projectId, title, createdAt]
+    `INSERT INTO subtasks (id, project_id, parent_subtask_id, title, is_complete, order_index, source, created_at) VALUES (?, ?, ?, ?, 0, 0, 'manual', ?);`,
+    [id, projectId, parentSubtaskId, title, createdAt]
   );
   return id;
 }
@@ -56,16 +66,23 @@ export function getSubtasksForProject(projectId: string) {
   return db.getAllSync<{
     id: string;
     project_id: string;
+    parent_subtask_id: string | null;
     title: string;
     is_complete: number;
     order_index: number;
+    difficulty: string | null;
+    est_minutes: number | null;
+    source: string;
     created_at: string;
-  }>('SELECT * FROM subtasks WHERE project_id = ? ORDER BY created_at ASC;', [projectId]);
+  }>(
+    'SELECT * FROM subtasks WHERE project_id = ? ORDER BY created_at ASC;',
+    [projectId]
+  );
 }
 
 export function toggleSubtaskComplete(subtaskId: string, isComplete: boolean) {
-  db.runSync(
-    `UPDATE subtasks SET is_complete = ? WHERE id = ?;`,
-    [isComplete ? 1 : 0, subtaskId]
-  );
+  db.runSync(`UPDATE subtasks SET is_complete = ? WHERE id = ?;`, [
+    isComplete ? 1 : 0,
+    subtaskId,
+  ]);
 }
