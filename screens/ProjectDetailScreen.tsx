@@ -137,9 +137,30 @@ export default function ProjectDetailScreen() {
           ) : (
             <View style={[styles.checkbox, isComplete && styles.checkboxChecked]} />
           )}
-          <Text style={[styles.subtaskText, isComplete && styles.subtaskTextComplete]}>
-            {item.title}
-          </Text>
+          <View style={{ flex: 1 }}>
+  <Text style={[styles.subtaskText, isComplete && styles.subtaskTextComplete]}>
+    {item.title}
+  </Text>
+  {(item.difficulty || item.est_minutes) && (
+    <View style={styles.metaRow}>
+      {item.difficulty && (
+        <View
+          style={[
+            styles.difficultyBadge,
+            item.difficulty === 'easy' && styles.badgeEasy,
+            item.difficulty === 'medium' && styles.badgeMedium,
+            item.difficulty === 'hard' && styles.badgeHard,
+          ]}
+        >
+          <Text style={styles.badgeText}>{item.difficulty}</Text>
+        </View>
+      )}
+      {item.est_minutes && (
+        <Text style={styles.metaTime}>{item.est_minutes}m</Text>
+      )}
+    </View>
+  )}
+</View>
           <TouchableOpacity
             style={styles.splitButton}
             onPress={() => handleSplitPress(item.id)}
@@ -261,7 +282,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#10B981',
     borderColor: '#10B981',
   },
-  subtaskText: { color: '#F5F5F7', fontSize: 15, flex: 1 },
+  subtaskText: { color: '#F5F5F7', fontSize: 15 },
   subtaskTextComplete: {
     color: '#A5ABB6',
     textDecorationLine: 'line-through',
@@ -312,4 +333,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   addButtonText: { color: '#F5F5F7', fontSize: 15, fontWeight: '600' },
+  metaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 8 },
+difficultyBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 },
+badgeEasy: { backgroundColor: '#10B98133' },
+badgeMedium: { backgroundColor: '#F59E0B33' },
+badgeHard: { backgroundColor: '#F8717133' },
+badgeText: { color: '#F5F5F7', fontSize: 11, fontWeight: '600' },
+metaTime: { color: '#A5ABB6', fontSize: 12 },
 });

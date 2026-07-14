@@ -51,13 +51,16 @@ export function getAllProjects() {
 export function addSubtask(
   projectId: string,
   title: string,
-  parentSubtaskId: string | null = null
+  parentSubtaskId: string | null = null,
+  difficulty: string | null = null,
+  estMinutes: number | null = null,
+  source: string = 'manual'
 ) {
   const id = Date.now().toString();
   const createdAt = new Date().toISOString();
   db.runSync(
-    `INSERT INTO subtasks (id, project_id, parent_subtask_id, title, is_complete, order_index, source, created_at) VALUES (?, ?, ?, ?, 0, 0, 'manual', ?);`,
-    [id, projectId, parentSubtaskId, title, createdAt]
+    `INSERT INTO subtasks (id, project_id, parent_subtask_id, title, is_complete, order_index, difficulty, est_minutes, source, created_at) VALUES (?, ?, ?, ?, 0, 0, ?, ?, ?, ?);`,
+    [id, projectId, parentSubtaskId, title, difficulty, estMinutes, source, createdAt]
   );
   return id;
 }
