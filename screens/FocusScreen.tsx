@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRoute } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
+import { useKeepAwake } from 'expo-keep-awake';
 import {
   getAllProjects,
   getSubtasksForProject,
@@ -13,13 +14,16 @@ import {
 import { colors, radius } from '../theme/tokens';
 
 type Project = { id: string; name: string; color: string };
-type Subtask = { id: string; title: string; is_complete: number; parent_subtask_id: string | null };
+type Subtask = { id: string; title: string; is_complete: number; parent_subtask_id: string | null; est_minutes: number | null };
 type CyclePhase = 'work' | 'break' | 'longBreak';
 
 const DEFAULT_WORK_MINUTES = 25;
 const DEFAULT_BREAK_MINUTES = 5;
 const DEFAULT_LONG_BREAK_MINUTES = 15;
-const CYCLES_BEFORE_LONG_BREAK = 4;
+
+function roundToStep(minutes: number, step = 5) {
+  return Math.max(step, Math.round(minutes / step) * step);
+}
 
 export default function FocusScreen() {
   const route = useRoute<any>();
@@ -42,15 +46,18 @@ export default function FocusScreen() {
   const [showBreakChoice, setShowBreakChoice] = useState(false);
   const [completedCount, setCompletedCount] = useState(0);
 
+  const phaseEndRef = useRef<number>(Date.now() + DEFAULT_WORK_MINUTES * 60 * 1000);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Handle being navigated here directly from a subtask's timer button
+  // Keep the screen awake only while an active session is running
+  useKeepAwake(sessionStarted ? 'kairos-focus' : undefined);
+
   useEffect(() => {
     if (route.params?.subtaskId) {
       setSelectedSubtaskId(route.params.subtaskId);
       setSelectedSubtaskTitle(route.params.subtaskTitle ?? null);
       if (route.params.estMinutes) {
-        const rounded = Math.max(5, Math.round(route.params.estMinutes / 5) * 5);
+        const rounded = roundToStep(route.params.estMinutes);
         setWorkMinutes(rounded);
         setSecondsLeft(rounded * 60);
       }
@@ -74,16 +81,16 @@ export default function FocusScreen() {
     }
   }, [selectedProjectId]);
 
+  // Timestamp-based countdown: survives backgrounding/locking correctly
   useEffect(() => {
     if (isRunning) {
       intervalRef.current = setInterval(() => {
-        setSecondsLeft((prev) => {
-          if (prev <= 1) {
-            handlePhaseComplete();
-            return 0;
-          }
-          return prev - 1;
-        });
+        const remainingMs = phaseEndRef.current - Date.now();
+        const remainingSec = Math.max(0, Math.ceil(remainingMs / 1000));
+        setSecondsLeft(remainingSec);
+        if (remainingSec <= 0) {
+          handlePhaseComplete();
+        }
       }, 1000);
     } else if (intervalRef.current) {
       clearInterval(intervalRef.current);
@@ -93,17 +100,27 @@ export default function FocusScreen() {
     };
   }, [isRunning]);
 
+  const beginPhaseTimer = (durationSeconds: number) => {
+    phaseEndRef.current = Date.now() + durationSeconds * 1000;
+    setSecondsLeft(durationSeconds);
+  };
+
   const handleStart = () => {
     if (phase === 'work') {
       const newSessionId = startFocusSession(selectedSubtaskId, 'pomodoro');
       setSessionId(newSessionId);
     }
+    beginPhaseTimer(workMinutes * 60);
     setSessionStarted(true);
     setIsRunning(true);
   };
 
   const handlePause = () => setIsRunning(false);
-  const handleResume = () => setIsRunning(true);
+  const handleResume = () => {
+    // Recompute the end timestamp based on remaining time so pausing doesn't lose accuracy
+    phaseEndRef.current = Date.now() + secondsLeft * 1000;
+    setIsRunning(true);
+  };
 
   const handleReset = () => {
     setIsRunning(false);
@@ -127,19 +144,18 @@ export default function FocusScreen() {
       }
       setSessionId(null);
       setShowBreakChoice(true);
-      setIsRunning(false);
     } else {
       const newSessionId = startFocusSession(selectedSubtaskId, 'pomodoro');
       setSessionId(newSessionId);
       setPhase('work');
-      setSecondsLeft(workMinutes * 60);
+      beginPhaseTimer(workMinutes * 60);
     }
   };
 
   const chooseBreak = (isLong: boolean) => {
     setShowBreakChoice(false);
     setPhase(isLong ? 'longBreak' : 'break');
-    setSecondsLeft((isLong ? longBreakMinutes : breakMinutes) * 60);
+    beginPhaseTimer((isLong ? longBreakMinutes : breakMinutes) * 60);
     setIsRunning(true);
   };
 
@@ -159,6 +175,17 @@ export default function FocusScreen() {
     const next = Math.max(min, current + delta);
     setter(next);
     if (isWork && phase === 'work' && !sessionStarted) setSecondsLeft(next * 60);
+  };
+
+  // Adjust the currently running/paused phase's remaining time live
+  const adjustRunningTime = (deltaMinutes: number) => {
+    const deltaSeconds = deltaMinutes * 60;
+    const newSecondsLeft = Math.max(60, secondsLeft + deltaSeconds);
+    phaseEndRef.current = Date.now() + newSecondsLeft * 1000;
+    setSecondsLeft(newSecondsLeft);
+    if (phase === 'work') {
+      setWorkMinutes(Math.round(newSecondsLeft / 60));
+    }
   };
 
   const isBreak = phase === 'break' || phase === 'longBreak';
@@ -204,6 +231,11 @@ export default function FocusScreen() {
                         setSelectedSubtaskId(subtask.id);
                         setSelectedSubtaskTitle(subtask.title);
                         setCompletedCount(getCompletedSessionCount(subtask.id));
+                        if (subtask.est_minutes) {
+                          const rounded = roundToStep(subtask.est_minutes);
+                          setWorkMinutes(rounded);
+                          setSecondsLeft(rounded * 60);
+                        }
                       }}
                     >
                       <Text style={styles.chipText}>{subtask.title}</Text>
@@ -280,6 +312,18 @@ export default function FocusScreen() {
             <Text style={[styles.timerText, isBreak && styles.timerTextBreak]}>
               {formatTime(secondsLeft)}
             </Text>
+
+            {sessionStarted && (
+              <View style={styles.liveAdjustRow}>
+                <TouchableOpacity onPress={() => adjustRunningTime(-5)} style={styles.stepperButton}>
+                  <Text style={styles.stepperText}>−5m</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => adjustRunningTime(5)} style={styles.stepperButton}>
+                  <Text style={styles.stepperText}>+5m</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             {selectedSubtaskId && (
               <Text style={styles.cycleLabel}>
                 {completedCount} session{completedCount === 1 ? '' : 's'} completed
@@ -339,14 +383,16 @@ const styles = StyleSheet.create({
   stepperRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   stepperButton: {
     backgroundColor: colors.bgSurface,
-    width: 26,
+    minWidth: 26,
     height: 26,
+    paddingHorizontal: 8,
     borderRadius: 13,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  stepperText: { color: colors.textPrimary, fontSize: 16, fontWeight: '600' },
+  stepperText: { color: colors.textPrimary, fontSize: 14, fontWeight: '600' },
   stepperValue: { color: colors.textPrimary, fontSize: 14, minWidth: 34, textAlign: 'center' },
+  liveAdjustRow: { flexDirection: 'row', gap: 12, marginTop: 12, marginBottom: 4 },
   timerSection: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   breakChoiceBox: { alignItems: 'center', gap: 16 },
   phaseLabel: { color: colors.accentPrimary, fontSize: 14, fontWeight: '600', marginBottom: 4 },

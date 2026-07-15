@@ -1,10 +1,9 @@
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DarkTheme, CommonActions } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { DarkTheme, DefaultTheme } from '@react-navigation/native';
 
 import HomeScreen from './screens/HomeScreen';
 import ProjectsScreen from './screens/ProjectsScreen';
@@ -63,8 +62,41 @@ export default function App() {
         })}
       >
         <Tab.Screen name="Home" component={HomeScreen} />
-        <Tab.Screen name="Projects" component={ProjectsStackScreen} />
-        <Tab.Screen name="Focus" component={FocusScreen} />
+
+        <Tab.Screen
+          name="Projects"
+          component={ProjectsStackScreen}
+          listeners={({ navigation }) => ({
+            tabPress: (e) => {
+              const state = navigation.getState();
+              const isFocused = state.routes[state.index]?.name === 'Projects';
+              if (isFocused) {
+                e.preventDefault();
+                navigation.dispatch(
+                   CommonActions.navigate('Projects', { screen: 'ProjectsList' })
+                );
+              }
+            },
+          })}
+        />
+
+        <Tab.Screen
+          name="Focus"
+          component={FocusScreen}
+          listeners={({ navigation }) => ({
+            tabPress: (e) => {
+              const state = navigation.getState();
+              const isFocused = state.routes[state.index]?.name === 'Focus';
+              if (isFocused) {
+                e.preventDefault();
+                navigation.dispatch(
+                  CommonActions.navigate('Focus', { subtaskId: undefined, subtaskTitle: undefined, estMinutes: undefined })
+                );
+              }
+            },
+          })}
+        />
+
         <Tab.Screen name="Insights" component={InsightsScreen} />
       </Tab.Navigator>
     </NavigationContainer>
