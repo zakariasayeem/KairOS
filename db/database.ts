@@ -154,3 +154,6 @@ export function getCompletedSessionCount(subtaskId: string) {
   );
   return result?.count ?? 0;
 }
+export function updateProjectName(id: string, name: string) {
+  db.runSync(`UPDATE projects SET name = ? WHERE id = ?;`, [name, id]);
+}

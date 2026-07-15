@@ -22,6 +22,9 @@ import {
 } from '../db/database';
 import { useRoute, useFocusEffect, useNavigation } from '@react-navigation/native';
 import { colors } from '../theme/tokens';
+import { updateProjectName } from '../db/database';
+import { fetchAIBreakdown } from '../lib/aiBreakdown';
+import { ActivityIndicator } from 'react-native';
 
 type Subtask = {
   id: string;
@@ -48,6 +51,8 @@ export default function ProjectDetailScreen() {
   const [childTitle, setChildTitle] = useState('');
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [editMode, setEditMode] = useState(false);
+  const [editableProjectName, setEditableProjectName] = useState(projectName);
+  const [aiSplitLoadingFor, setAiSplitLoadingFor] = useState<string | null>(null);
 
   const loadSubtasks = useCallback(() => {
     setSubtasks(getSubtasksForProject(projectId));
@@ -81,6 +86,22 @@ export default function ProjectDetailScreen() {
     Keyboard.dismiss();
     loadSubtasks();
   };
+
+    const handleAISplit = async (parentId: string, parentTitle: string) => {
+  setAiSplitLoadingFor(parentId);
+  try {
+    const result = await fetchAIBreakdown(parentTitle);
+    result.subtasks.forEach((subtask) => {
+      addSubtask(projectId, subtask.title, parentId, subtask.difficulty, subtask.est_minutes, 'ai_generated');
+    });
+    setAddingChildFor(null);
+    loadSubtasks();
+  } catch (error) {
+    console.error('AI split error:', error);
+  } finally {
+    setAiSplitLoadingFor(null);
+  }
+};
 
   const handleToggleChild = (subtask: Subtask) => {
     toggleSubtaskComplete(subtask.id, subtask.is_complete === 0);
@@ -294,21 +315,31 @@ export default function ProjectDetailScreen() {
         </TouchableOpacity>
 
         {isAddingChild && (
-          <View style={styles.childAddRow}>
-            <TextInput
-              style={styles.childInput}
-              placeholder="Break this down further..."
-              placeholderTextColor="#A5ABB6"
-              value={childTitle}
-              onChangeText={setChildTitle}
-              autoFocus
-            />
-            <TouchableOpacity style={styles.childAddButton} onPress={() => handleAddChild(item.id)}>
-              <Text style={styles.addButtonText}>Add</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
+  <View style={styles.childAddRow}>
+    <TextInput
+      style={styles.childInput}
+      placeholder="Break this down further..."
+      placeholderTextColor="#A5ABB6"
+      value={childTitle}
+      onChangeText={setChildTitle}
+      autoFocus
+    />
+    <TouchableOpacity style={styles.childAddButton} onPress={() => handleAddChild(item.id)}>
+      <Text style={styles.addButtonText}>Add</Text>
+    </TouchableOpacity>
+    <TouchableOpacity
+      style={styles.aiSplitButton}
+      onPress={() => handleAISplit(item.id, item.title)}
+      disabled={aiSplitLoadingFor === item.id}
+    >
+      {aiSplitLoadingFor === item.id ? (
+        <ActivityIndicator color="#F5F5F7" size="small" />
+      ) : (
+        <Ionicons name="sparkles" size={16} color="#F5F5F7" />
+      )}
+    </TouchableOpacity>
+  </View>
+)}
         {hasChildren &&
           !isCollapsed &&
           children.map((child) => (
@@ -346,8 +377,17 @@ export default function ProjectDetailScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <View style={styles.headerRow}>
-          <Text style={styles.title}>{projectName}</Text>
-          <TouchableOpacity onPress={() => setEditMode((prev) => !prev)}>
+  {editMode ? (
+    <TextInput
+      style={styles.titleInput}
+      value={editableProjectName}
+      onChangeText={setEditableProjectName}
+      onBlur={() => updateProjectName(projectId, editableProjectName.trim())}
+    />
+  ) : (
+    <Text style={styles.title}>{editableProjectName}</Text>
+  )}
+  <TouchableOpacity onPress={() => setEditMode((prev) => !prev)}>
             <Ionicons
               name={editMode ? 'checkmark-circle' : 'ellipsis-horizontal'}
               size={24}
@@ -498,5 +538,21 @@ const styles = StyleSheet.create({
   alignItems: 'center',
   justifyContent: 'center',
   marginLeft: 8,
+},
+titleInput: {
+  color: '#F5F5F7',
+  fontSize: 22,
+  fontWeight: '600',
+  flex: 1,
+  borderBottomWidth: 1,
+  borderBottomColor: colors.accentPrimary,
+  paddingVertical: 2,
+},
+aiSplitButton: {
+  backgroundColor: colors.progressHigh,
+  borderRadius: 10,
+  paddingHorizontal: 12,
+  justifyContent: 'center',
+  alignItems: 'center',
 },
 });
