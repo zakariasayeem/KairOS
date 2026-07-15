@@ -13,7 +13,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { addSubtask, getSubtasksForProject, toggleSubtaskComplete } from '../db/database';
+import {
+  addSubtask,
+  getSubtasksForProject,
+  toggleSubtaskComplete,
+  updateSubtask,
+  deleteSubtask,
+  updateSubtaskOrder,
+} from '../db/database';
 
 type Subtask = {
   id: string;
@@ -28,6 +35,8 @@ type Subtask = {
   created_at: string;
 };
 
+type Difficulty = 'easy' | 'medium' | 'hard';
+
 export default function ProjectDetailScreen() {
   const route = useRoute<any>();
   const { projectId, projectName } = route.params;
@@ -37,6 +46,7 @@ export default function ProjectDetailScreen() {
   const [addingChildFor, setAddingChildFor] = useState<string | null>(null);
   const [childTitle, setChildTitle] = useState('');
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [editMode, setEditMode] = useState(false);
 
   const loadSubtasks = useCallback(() => {
     setSubtasks(getSubtasksForProject(projectId));
@@ -88,7 +98,6 @@ export default function ProjectDetailScreen() {
       setAddingChildFor(null);
     } else {
       setAddingChildFor(itemId);
-      // Make sure this subtask is expanded so the input is visible
       setCollapsed((prev) => {
         const next = new Set(prev);
         next.delete(itemId);
@@ -97,14 +106,126 @@ export default function ProjectDetailScreen() {
     }
   };
 
-  const topLevelSubtasks = subtasks.filter((s) => s.parent_subtask_id === null);
+  const handleEditTitle = (id: string, title: string, difficulty: string | null, estMinutes: number | null) => {
+    updateSubtask(id, title, difficulty, estMinutes);
+    setSubtasks((prev) => prev.map((s) => (s.id === id ? { ...s, title } : s)));
+  };
+
+  const handleEditMinutes = (id: string, minutesText: string, title: string, difficulty: string | null) => {
+    const minutes = parseInt(minutesText, 10);
+    const estMinutes = isNaN(minutes) ? null : minutes;
+    updateSubtask(id, title, difficulty, estMinutes);
+    setSubtasks((prev) => prev.map((s) => (s.id === id ? { ...s, est_minutes: estMinutes } : s)));
+  };
+
+  const handleCycleDifficulty = (id: string, title: string, currentDifficulty: string | null, estMinutes: number | null) => {
+    const order: Difficulty[] = ['easy', 'medium', 'hard'];
+    const currentIndex = order.indexOf((currentDifficulty as Difficulty) ?? 'medium');
+    const nextDifficulty = order[(currentIndex + 1) % order.length];
+    updateSubtask(id, title, nextDifficulty, estMinutes);
+    setSubtasks((prev) => prev.map((s) => (s.id === id ? { ...s, difficulty: nextDifficulty } : s)));
+  };
+
+  const handleDelete = (id: string) => {
+    deleteSubtask(id);
+    loadSubtasks();
+  };
+
+  const handleMove = (list: Subtask[], index: number, direction: -1 | 1) => {
+    const newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= list.length) return;
+
+    const a = list[index];
+    const b = list[newIndex];
+    updateSubtaskOrder(a.id, b.order_index);
+    updateSubtaskOrder(b.id, a.order_index);
+    loadSubtasks();
+  };
+
+  const topLevelSubtasks = subtasks
+    .filter((s) => s.parent_subtask_id === null)
+    .sort((a, b) => a.order_index - b.order_index);
+
   const getChildren = (parentId: string) =>
-    subtasks.filter((s) => s.parent_subtask_id === parentId);
+    subtasks
+      .filter((s) => s.parent_subtask_id === parentId)
+      .sort((a, b) => a.order_index - b.order_index);
 
   const isParentComplete = (children: Subtask[]) => {
     if (children.length === 0) return null;
     return children.every((c) => c.is_complete === 1);
   };
+
+  const renderEditableRow = (item: Subtask, list: Subtask[], index: number, isChild: boolean) => (
+    <View key={item.id} style={[styles.subtaskPreview, isChild && styles.childRow]}>
+      <View style={styles.reorderColumn}>
+        <TouchableOpacity onPress={() => handleMove(list, index, -1)} disabled={index === 0}>
+          <Ionicons name="chevron-up" size={16} color={index === 0 ? '#3A3A45' : '#A5ABB6'} />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => handleMove(list, index, 1)} disabled={index === list.length - 1}>
+          <Ionicons
+            name="chevron-down"
+            size={16}
+            color={index === list.length - 1 ? '#3A3A45' : '#A5ABB6'}
+          />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.subtaskContent}>
+        <TextInput
+          style={styles.subtaskTitleInput}
+          value={item.title}
+          onChangeText={(text) => handleEditTitle(item.id, text, item.difficulty, item.est_minutes)}
+          multiline
+        />
+        <View style={styles.subtaskMetaRow}>
+          <TouchableOpacity
+            style={[
+              styles.difficultyPill,
+              item.difficulty === 'easy' && styles.pillEasy,
+              item.difficulty === 'medium' && styles.pillMedium,
+              item.difficulty === 'hard' && styles.pillHard,
+            ]}
+            onPress={() => handleCycleDifficulty(item.id, item.title, item.difficulty, item.est_minutes)}
+          >
+            <Text style={styles.difficultyPillText}>{item.difficulty ?? 'medium'}</Text>
+          </TouchableOpacity>
+          <View style={styles.minutesInputRow}>
+            <TextInput
+              style={styles.minutesInput}
+              value={String(item.est_minutes ?? '')}
+              onChangeText={(text) => handleEditMinutes(item.id, text, item.title, item.difficulty)}
+              keyboardType="number-pad"
+            />
+            <Text style={styles.minutesLabel}>min</Text>
+          </View>
+        </View>
+      </View>
+
+      <TouchableOpacity onPress={() => handleDelete(item.id)}>
+        <Ionicons name="close-circle" size={20} color="#A5ABB6" />
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderMetaBadges = (item: Subtask) =>
+    (item.difficulty || item.est_minutes) && (
+      <View style={styles.metaRow}>
+        {item.difficulty && (
+          <View
+            style={[
+              styles.difficultyBadge,
+              item.difficulty === 'easy' && styles.badgeEasy,
+              item.difficulty === 'medium' && styles.badgeMedium,
+              item.difficulty === 'hard' && styles.badgeHard,
+            ]}
+          >
+            <Text style={styles.badgeText}>{item.difficulty}</Text>
+          </View>
+        )}
+        {item.est_minutes && <Text style={styles.metaTime}>{item.est_minutes}m</Text>}
+      </View>
+    );
 
   const renderTopLevelRow = (item: Subtask) => {
     const children = getChildren(item.id);
@@ -113,6 +234,15 @@ export default function ProjectDetailScreen() {
     const isComplete = hasChildren ? parentComplete : item.is_complete === 1;
     const isCollapsed = collapsed.has(item.id);
     const isAddingChild = addingChildFor === item.id;
+
+    if (editMode) {
+      return (
+        <View key={item.id}>
+          {renderEditableRow(item, topLevelSubtasks, topLevelSubtasks.indexOf(item), false)}
+          {children.map((child, idx) => renderEditableRow(child, children, idx, true))}
+        </View>
+      );
+    }
 
     return (
       <View key={item.id}>
@@ -138,33 +268,12 @@ export default function ProjectDetailScreen() {
             <View style={[styles.checkbox, isComplete && styles.checkboxChecked]} />
           )}
           <View style={{ flex: 1 }}>
-  <Text style={[styles.subtaskText, isComplete && styles.subtaskTextComplete]}>
-    {item.title}
-  </Text>
-  {(item.difficulty || item.est_minutes) && (
-    <View style={styles.metaRow}>
-      {item.difficulty && (
-        <View
-          style={[
-            styles.difficultyBadge,
-            item.difficulty === 'easy' && styles.badgeEasy,
-            item.difficulty === 'medium' && styles.badgeMedium,
-            item.difficulty === 'hard' && styles.badgeHard,
-          ]}
-        >
-          <Text style={styles.badgeText}>{item.difficulty}</Text>
-        </View>
-      )}
-      {item.est_minutes && (
-        <Text style={styles.metaTime}>{item.est_minutes}m</Text>
-      )}
-    </View>
-  )}
-</View>
-          <TouchableOpacity
-            style={styles.splitButton}
-            onPress={() => handleSplitPress(item.id)}
-          >
+            <Text style={[styles.subtaskText, isComplete && styles.subtaskTextComplete]}>
+              {item.title}
+            </Text>
+            {renderMetaBadges(item)}
+          </View>
+          <TouchableOpacity style={styles.splitButton} onPress={() => handleSplitPress(item.id)}>
             <Text style={styles.splitButtonText}>{isAddingChild ? '×' : '+'}</Text>
           </TouchableOpacity>
         </TouchableOpacity>
@@ -179,10 +288,7 @@ export default function ProjectDetailScreen() {
               onChangeText={setChildTitle}
               autoFocus
             />
-            <TouchableOpacity
-              style={styles.childAddButton}
-              onPress={() => handleAddChild(item.id)}
-            >
+            <TouchableOpacity style={styles.childAddButton} onPress={() => handleAddChild(item.id)}>
               <Text style={styles.addButtonText}>Add</Text>
             </TouchableOpacity>
           </View>
@@ -197,17 +303,15 @@ export default function ProjectDetailScreen() {
               activeOpacity={0.7}
               onPress={() => handleToggleChild(child)}
             >
-              <View
-                style={[styles.checkbox, child.is_complete === 1 && styles.checkboxChecked]}
-              />
-              <Text
-                style={[
-                  styles.subtaskText,
-                  child.is_complete === 1 && styles.subtaskTextComplete,
-                ]}
-              >
-                {child.title}
-              </Text>
+              <View style={[styles.checkbox, child.is_complete === 1 && styles.checkboxChecked]} />
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={[styles.subtaskText, child.is_complete === 1 && styles.subtaskTextComplete]}
+                >
+                  {child.title}
+                </Text>
+                {renderMetaBadges(child)}
+              </View>
             </TouchableOpacity>
           ))}
       </View>
@@ -220,7 +324,16 @@ export default function ProjectDetailScreen() {
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <Text style={styles.title}>{projectName}</Text>
+        <View style={styles.headerRow}>
+          <Text style={styles.title}>{projectName}</Text>
+          <TouchableOpacity onPress={() => setEditMode((prev) => !prev)}>
+            <Ionicons
+              name={editMode ? 'checkmark-circle' : 'ellipsis-horizontal'}
+              size={24}
+              color="#F5F5F7"
+            />
+          </TouchableOpacity>
+        </View>
 
         {topLevelSubtasks.length === 0 ? (
           <Text style={styles.subtitle}>No subtasks yet</Text>
@@ -229,26 +342,25 @@ export default function ProjectDetailScreen() {
             data={topLevelSubtasks}
             keyExtractor={(item) => item.id}
             contentContainerStyle={{ marginTop: 16 }}
+            keyboardShouldPersistTaps="handled"
             renderItem={({ item }) => renderTopLevelRow(item)}
           />
         )}
 
-        <View style={styles.addSection}>
-          <TextInput
-            style={styles.input}
-            placeholder="Add a subtask..."
-            placeholderTextColor="#A5ABB6"
-            value={subtaskTitle}
-            onChangeText={setSubtaskTitle}
-          />
-          <TouchableOpacity
-            style={styles.addButton}
-            activeOpacity={0.85}
-            onPress={handleAddSubtask}
-          >
-            <Text style={styles.addButtonText}>+ Add Subtask</Text>
-          </TouchableOpacity>
-        </View>
+        {!editMode && (
+          <View style={styles.addSection}>
+            <TextInput
+              style={styles.input}
+              placeholder="Add a subtask..."
+              placeholderTextColor="#A5ABB6"
+              value={subtaskTitle}
+              onChangeText={setSubtaskTitle}
+            />
+            <TouchableOpacity style={styles.addButton} activeOpacity={0.85} onPress={handleAddSubtask}>
+              <Text style={styles.addButtonText}>+ Add Subtask</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -256,7 +368,13 @@ export default function ProjectDetailScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0A0A0F', padding: 16 },
-  title: { color: '#F5F5F7', fontSize: 22, fontWeight: '600', marginTop: 16 },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  title: { color: '#F5F5F7', fontSize: 22, fontWeight: '600' },
   subtitle: { color: '#A5ABB6', fontSize: 15, marginTop: 8 },
   subtaskRow: {
     flexDirection: 'row',
@@ -266,10 +384,7 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 10,
   },
-  childRow: {
-    marginLeft: 24,
-    backgroundColor: '#1F1F29',
-  },
+  childRow: { marginLeft: 24, backgroundColor: '#1F1F29' },
   checkbox: {
     width: 22,
     height: 22,
@@ -278,15 +393,9 @@ const styles = StyleSheet.create({
     borderColor: '#6C5CE7',
     marginRight: 12,
   },
-  checkboxChecked: {
-    backgroundColor: '#10B981',
-    borderColor: '#10B981',
-  },
+  checkboxChecked: { backgroundColor: '#10B981', borderColor: '#10B981' },
   subtaskText: { color: '#F5F5F7', fontSize: 15 },
-  subtaskTextComplete: {
-    color: '#A5ABB6',
-    textDecorationLine: 'line-through',
-  },
+  subtaskTextComplete: { color: '#A5ABB6', textDecorationLine: 'line-through' },
   splitButton: {
     width: 28,
     height: 28,
@@ -297,12 +406,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   splitButtonText: { color: '#F5F5F7', fontSize: 16, fontWeight: '600' },
-  childAddRow: {
-    flexDirection: 'row',
-    marginLeft: 24,
-    marginBottom: 10,
-    gap: 8,
-  },
+  childAddRow: { flexDirection: 'row', marginLeft: 24, marginBottom: 10, gap: 8 },
   childInput: {
     flex: 1,
     backgroundColor: '#1F1F29',
@@ -326,18 +430,43 @@ const styles = StyleSheet.create({
     fontSize: 15,
     marginBottom: 12,
   },
-  addButton: {
-    backgroundColor: '#6C5CE7',
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
+  addButton: { backgroundColor: '#6C5CE7', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
   addButtonText: { color: '#F5F5F7', fontSize: 15, fontWeight: '600' },
   metaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 8 },
-difficultyBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 },
-badgeEasy: { backgroundColor: '#10B98133' },
-badgeMedium: { backgroundColor: '#F59E0B33' },
-badgeHard: { backgroundColor: '#F8717133' },
-badgeText: { color: '#F5F5F7', fontSize: 11, fontWeight: '600' },
-metaTime: { color: '#A5ABB6', fontSize: 12 },
+  difficultyBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 },
+  badgeEasy: { backgroundColor: '#10B98133' },
+  badgeMedium: { backgroundColor: '#F59E0B33' },
+  badgeHard: { backgroundColor: '#F8717133' },
+  badgeText: { color: '#F5F5F7', fontSize: 11, fontWeight: '600' },
+  metaTime: { color: '#A5ABB6', fontSize: 12 },
+  subtaskPreview: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#16161D',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    gap: 8,
+  },
+  reorderColumn: { justifyContent: 'center', alignItems: 'center', gap: 2, paddingTop: 4 },
+  subtaskContent: { flex: 1 },
+  subtaskTitleInput: { color: '#F5F5F7', fontSize: 15, paddingVertical: 2 },
+  subtaskMetaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 10 },
+  difficultyPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
+  pillEasy: { backgroundColor: '#10B98133' },
+  pillMedium: { backgroundColor: '#F59E0B33' },
+  pillHard: { backgroundColor: '#F8717133' },
+  difficultyPillText: { color: '#F5F5F7', fontSize: 12, fontWeight: '600' },
+  minutesInputRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  minutesInput: {
+    color: '#F5F5F7',
+    fontSize: 13,
+    backgroundColor: '#1F1F29',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    minWidth: 36,
+    textAlign: 'center',
+  },
+  minutesLabel: { color: '#A5ABB6', fontSize: 13 },
 });

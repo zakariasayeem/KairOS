@@ -58,9 +58,22 @@ export function addSubtask(
 ) {
   const id = Date.now().toString();
   const createdAt = new Date().toISOString();
+
+  const siblingsQuery = parentSubtaskId
+    ? db.getFirstSync<{ maxOrder: number | null }>(
+        `SELECT MAX(order_index) as maxOrder FROM subtasks WHERE parent_subtask_id = ?;`,
+        [parentSubtaskId]
+      )
+    : db.getFirstSync<{ maxOrder: number | null }>(
+        `SELECT MAX(order_index) as maxOrder FROM subtasks WHERE project_id = ? AND parent_subtask_id IS NULL;`,
+        [projectId]
+      );
+
+  const nextOrderIndex = (siblingsQuery?.maxOrder ?? -1) + 1;
+
   db.runSync(
-    `INSERT INTO subtasks (id, project_id, parent_subtask_id, title, is_complete, order_index, difficulty, est_minutes, source, created_at) VALUES (?, ?, ?, ?, 0, 0, ?, ?, ?, ?);`,
-    [id, projectId, parentSubtaskId, title, difficulty, estMinutes, source, createdAt]
+    `INSERT INTO subtasks (id, project_id, parent_subtask_id, title, is_complete, order_index, difficulty, est_minutes, source, created_at) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?);`,
+    [id, projectId, parentSubtaskId, title, nextOrderIndex, difficulty, estMinutes, source, createdAt]
   );
   return id;
 }
@@ -88,4 +101,23 @@ export function toggleSubtaskComplete(subtaskId: string, isComplete: boolean) {
     isComplete ? 1 : 0,
     subtaskId,
   ]);
+}
+export function updateSubtask(
+  id: string,
+  title: string,
+  difficulty: string | null,
+  estMinutes: number | null
+) {
+  db.runSync(
+    `UPDATE subtasks SET title = ?, difficulty = ?, est_minutes = ? WHERE id = ?;`,
+    [title, difficulty, estMinutes, id]
+  );
+}
+
+export function deleteSubtask(id: string) {
+  db.runSync(`DELETE FROM subtasks WHERE id = ?;`, [id]);
+}
+
+export function updateSubtaskOrder(id: string, orderIndex: number) {
+  db.runSync(`UPDATE subtasks SET order_index = ? WHERE id = ?;`, [orderIndex, id]);
 }
