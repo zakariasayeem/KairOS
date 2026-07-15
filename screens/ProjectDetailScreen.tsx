@@ -11,7 +11,6 @@ import {
   Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRoute, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import {
   addSubtask,
@@ -21,6 +20,8 @@ import {
   deleteSubtask,
   updateSubtaskOrder,
 } from '../db/database';
+import { useRoute, useFocusEffect, useNavigation } from '@react-navigation/native';
+import { colors } from '../theme/tokens';
 
 type Subtask = {
   id: string;
@@ -57,6 +58,12 @@ export default function ProjectDetailScreen() {
       loadSubtasks();
     }, [loadSubtasks])
   );
+
+  const navigation = useNavigation<any>();
+
+  const goToFocus = (subtaskId: string, subtaskTitle: string, estMinutes: number | null) => {
+  navigation.navigate('Focus', { subtaskId, subtaskTitle, estMinutes });
+  };
 
   const handleAddSubtask = () => {
     if (subtaskTitle.trim().length === 0) return;
@@ -276,6 +283,14 @@ export default function ProjectDetailScreen() {
           <TouchableOpacity style={styles.splitButton} onPress={() => handleSplitPress(item.id)}>
             <Text style={styles.splitButtonText}>{isAddingChild ? '×' : '+'}</Text>
           </TouchableOpacity>
+          {!hasChildren && (
+          <TouchableOpacity
+              style={styles.timerButton}
+               onPress={() => goToFocus(item.id, item.title, item.est_minutes)}
+  >
+            <Ionicons name="timer-outline" size={18} color={colors.textPrimary} />
+           </TouchableOpacity>
+)}
         </TouchableOpacity>
 
         {isAddingChild && (
@@ -312,6 +327,12 @@ export default function ProjectDetailScreen() {
                 </Text>
                 {renderMetaBadges(child)}
               </View>
+              <TouchableOpacity
+                style={styles.timerButton}
+                onPress={() => goToFocus(child.id, child.title, child.est_minutes)}
+>
+                <Ionicons name="timer-outline" size={18} color={colors.textPrimary} />
+              </TouchableOpacity>
             </TouchableOpacity>
           ))}
       </View>
@@ -469,4 +490,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   minutesLabel: { color: '#A5ABB6', fontSize: 13 },
+  timerButton: {
+  width: 28,
+  height: 28,
+  borderRadius: 14,
+  backgroundColor: colors.bgSurfaceRaised,
+  alignItems: 'center',
+  justifyContent: 'center',
+  marginLeft: 8,
+},
 });

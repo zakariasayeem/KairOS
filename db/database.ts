@@ -24,6 +24,15 @@ export function initDatabase() {
       source TEXT NOT NULL DEFAULT 'manual',
       created_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS focus_sessions (
+      id TEXT PRIMARY KEY NOT NULL,
+      subtask_id TEXT,
+      mode TEXT NOT NULL,
+      start_time TEXT NOT NULL,
+      end_time TEXT,
+      duration_minutes INTEGER,
+      created_at TEXT NOT NULL
+);
   `);
 }
 
@@ -120,4 +129,28 @@ export function deleteSubtask(id: string) {
 
 export function updateSubtaskOrder(id: string, orderIndex: number) {
   db.runSync(`UPDATE subtasks SET order_index = ? WHERE id = ?;`, [orderIndex, id]);
+}
+export function startFocusSession(subtaskId: string | null, mode: 'pomodoro' | 'flowtime') {
+  const id = Date.now().toString();
+  const startTime = new Date().toISOString();
+  db.runSync(
+    `INSERT INTO focus_sessions (id, subtask_id, mode, start_time, created_at) VALUES (?, ?, ?, ?, ?);`,
+    [id, subtaskId, mode, startTime, startTime]
+  );
+  return id;
+}
+
+export function endFocusSession(sessionId: string, durationMinutes: number) {
+  const endTime = new Date().toISOString();
+  db.runSync(
+    `UPDATE focus_sessions SET end_time = ?, duration_minutes = ? WHERE id = ?;`,
+    [endTime, durationMinutes, sessionId]
+  );
+}
+export function getCompletedSessionCount(subtaskId: string) {
+  const result = db.getFirstSync<{ count: number }>(
+    `SELECT COUNT(*) as count FROM focus_sessions WHERE subtask_id = ? AND end_time IS NOT NULL AND mode = 'pomodoro';`,
+    [subtaskId]
+  );
+  return result?.count ?? 0;
 }
