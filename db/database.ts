@@ -32,7 +32,22 @@ export function initDatabase() {
       end_time TEXT,
       duration_minutes INTEGER,
       created_at TEXT NOT NULL
-);
+    );
+    CREATE TABLE IF NOT EXISTS user_rank (
+      id TEXT PRIMARY KEY NOT NULL DEFAULT 'singleton',
+      rank TEXT NOT NULL DEFAULT 'D',
+      level INTEGER NOT NULL DEFAULT 1,
+      current_xp INTEGER NOT NULL DEFAULT 0,
+      total_lifetime_xp INTEGER NOT NULL DEFAULT 0,
+      last_activity_at TEXT,
+      decay_paused_until TEXT
+    );
+    CREATE TABLE IF NOT EXISTS xp_events (
+      id TEXT PRIMARY KEY NOT NULL,
+      source TEXT NOT NULL,
+      amount INTEGER NOT NULL,
+      created_at TEXT NOT NULL
+    );
   `);
 }
 
@@ -156,4 +171,39 @@ export function getCompletedSessionCount(subtaskId: string) {
 }
 export function updateProjectName(id: string, name: string) {
   db.runSync(`UPDATE projects SET name = ? WHERE id = ?;`, [name, id]);
+}
+export function getUserRank() {
+  const existing = db.getFirstSync<{
+    id: string;
+    rank: string;
+    level: number;
+    current_xp: number;
+    total_lifetime_xp: number;
+    last_activity_at: string | null;
+    decay_paused_until: string | null;
+  }>('SELECT * FROM user_rank WHERE id = ?;', ['singleton']);
+
+  if (existing) return existing;
+
+  db.runSync(
+    `INSERT INTO user_rank (id, rank, level, current_xp, total_lifetime_xp) VALUES ('singleton', 'D', 1, 0, 0);`
+  );
+  return getUserRank();
+}
+
+export function saveUserRank(rank: string, level: number, currentXp: number, totalLifetimeXp: number) {
+  const now = new Date().toISOString();
+  db.runSync(
+    `UPDATE user_rank SET rank = ?, level = ?, current_xp = ?, total_lifetime_xp = ?, last_activity_at = ? WHERE id = 'singleton';`,
+    [rank, level, currentXp, totalLifetimeXp, now]
+  );
+}
+
+export function logXPEvent(source: string, amount: number) {
+  const id = Date.now().toString();
+  const createdAt = new Date().toISOString();
+  db.runSync(
+    `INSERT INTO xp_events (id, source, amount, created_at) VALUES (?, ?, ?, ?);`,
+    [id, source, amount, createdAt]
+  );
 }
