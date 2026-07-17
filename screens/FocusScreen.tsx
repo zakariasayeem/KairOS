@@ -12,6 +12,8 @@ import {
   getCompletedSessionCount,
 } from '../db/database';
 import { colors, radius } from '../theme/tokens';
+import { calculateFocusSessionXP } from '../features/rank/xpEngine';
+import { awardXP } from '../db/database';
 
 type Project = { id: string; name: string; color: string };
 type Subtask = { id: string; title: string; is_complete: number; parent_subtask_id: string | null; est_minutes: number | null };
@@ -136,15 +138,18 @@ export default function FocusScreen() {
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     if (phase === 'work') {
-      if (sessionId) {
-        endFocusSession(sessionId, workMinutes);
-        if (selectedSubtaskId) {
-          setCompletedCount(getCompletedSessionCount(selectedSubtaskId));
-        }
-      }
-      setSessionId(null);
-      setShowBreakChoice(true);
-    } else {
+  if (sessionId) {
+    endFocusSession(sessionId, workMinutes);
+    const xpEarned = calculateFocusSessionXP(workMinutes);
+    const xpResult = awardXP('focus_session', xpEarned);
+    console.log('XP awarded:', xpEarned, xpResult); // temporary, for verification
+    if (selectedSubtaskId) {
+      setCompletedCount(getCompletedSessionCount(selectedSubtaskId));
+    }
+  }
+  setSessionId(null);
+  setShowBreakChoice(true);
+} else {
       const newSessionId = startFocusSession(selectedSubtaskId, 'pomodoro');
       setSessionId(newSessionId);
       setPhase('work');

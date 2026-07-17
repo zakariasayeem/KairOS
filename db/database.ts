@@ -1,4 +1,6 @@
 import * as SQLite from 'expo-sqlite';
+import { applyXPGain, xpRequiredForLevel, RankState } from '../features/rank/xpEngine';
+
 
 export const db = SQLite.openDatabaseSync('kairos.db');
 
@@ -121,10 +123,20 @@ export function getSubtasksForProject(projectId: string) {
 }
 
 export function toggleSubtaskComplete(subtaskId: string, isComplete: boolean) {
+  // Check if this subtask has ever earned completion XP before
+  const alreadyAwarded = db.getFirstSync<{ count: number }>(
+    `SELECT COUNT(*) as count FROM xp_events WHERE source = ?;`,
+    [`subtask_complete:${subtaskId}`]
+  );
+
   db.runSync(`UPDATE subtasks SET is_complete = ? WHERE id = ?;`, [
     isComplete ? 1 : 0,
     subtaskId,
   ]);
+
+  if (isComplete && (alreadyAwarded?.count ?? 0) === 0) {
+    awardXP(`subtask_complete:${subtaskId}`, 15);
+  }
 }
 export function updateSubtask(
   id: string,
@@ -206,4 +218,35 @@ export function logXPEvent(source: string, amount: number) {
     `INSERT INTO xp_events (id, source, amount, created_at) VALUES (?, ?, ?, ?);`,
     [id, source, amount, createdAt]
   );
+}
+export function awardXP(source: string, amount: number) {
+  const current = getUserRank();
+  const state: RankState = {
+    rank: current.rank as any,
+    level: current.level,
+    currentXp: current.current_xp,
+    totalLifetimeXp: current.total_lifetime_xp,
+  };
+
+  const result = applyXPGain(state, amount);
+  saveUserRank(
+    result.newState.rank,
+    result.newState.level,
+    result.newState.currentXp,
+    result.newState.totalLifetimeXp
+  );
+  logXPEvent(source, amount);
+
+  return result;
+}
+export function getRankProgress() {
+  const rank = getUserRank();
+  const required = xpRequiredForLevel(rank.rank as any, rank.level + 1);
+  return {
+    rank: rank.rank,
+    level: rank.level,
+    currentXp: rank.current_xp,
+    xpRequired: required,
+    totalLifetimeXp: rank.total_lifetime_xp,
+  };
 }

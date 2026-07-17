@@ -130,3 +130,15 @@ export function calculateFocusSessionXP(durationMinutes: number): number {
       overflowMinutes * XP_SOURCES.FOCUS_SESSION_PER_MINUTE * 0.25
   );
 }
+/**
+ * TODO (Future):
+ * Completion XP will eventually become hierarchy-aware.
+ *
+ * Parent subtasks own a fixed completion XP budget.
+ * If a parent is broken into child subtasks, that budget
+ * should be distributed across the children rather than
+ * creating additional completion XP.
+ *
+ * Timer XP is intentionally independent of completion XP
+ * and always rewards actual focus time.
+ */

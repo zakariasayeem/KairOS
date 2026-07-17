@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,10 +12,11 @@ import {
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { addProject, addSubtask } from '../db/database';
+import { addProject, addSubtask, getRankProgress } from '../db/database';
 import { fetchAIBreakdown, AISubtask } from '../lib/aiBreakdown';
+import RankBadge from '../components/RankBadge';
 
 type ScreenState = 'idle' | 'loading' | 'review' | 'error';
 type Difficulty = 'easy' | 'medium' | 'hard';
@@ -26,6 +27,13 @@ export default function HomeScreen() {
   const [screenState, setScreenState] = useState<ScreenState>('idle');
   const [suggestedSubtasks, setSuggestedSubtasks] = useState<AISubtask[]>([]);
   const [errorMessage, setErrorMessage] = useState('');
+  const [rankProgress, setRankProgress] = useState(getRankProgress());
+
+  useFocusEffect(
+    useCallback(() => {
+      setRankProgress(getRankProgress());
+    }, [])
+  );
 
   const handleBreakdown = async () => {
     if (goalText.trim().length === 0) return;
@@ -44,20 +52,20 @@ export default function HomeScreen() {
   };
 
   const handleConfirm = () => {
-  const projectId = addProject(goalText.trim(), '#6C5CE7');
-  suggestedSubtasks.forEach((subtask) => {
-    addSubtask(projectId, subtask.title, null, subtask.difficulty, subtask.est_minutes, 'ai_generated');
-  });
-  
+    const projectId = addProject(goalText.trim(), '#6C5CE7');
+    suggestedSubtasks.forEach((subtask) => {
+      addSubtask(projectId, subtask.title, null, subtask.difficulty, subtask.est_minutes, 'ai_generated');
+    });
+
     setGoalText('');
     setSuggestedSubtasks([]);
     setScreenState('idle');
 
     navigation.navigate('Projects', { screen: 'ProjectsList' });
-navigation.navigate('Projects', {
-  screen: 'ProjectDetail',
-  params: { projectId, projectName: goalText.trim() },
-});
+    navigation.navigate('Projects', {
+      screen: 'ProjectDetail',
+      params: { projectId, projectName: goalText.trim() },
+    });
   };
 
   const handleCancel = () => {
@@ -71,17 +79,13 @@ navigation.navigate('Projects', {
   };
 
   const updateSubtaskTitle = (index: number, title: string) => {
-    setSuggestedSubtasks((prev) =>
-      prev.map((s, i) => (i === index ? { ...s, title } : s))
-    );
+    setSuggestedSubtasks((prev) => prev.map((s, i) => (i === index ? { ...s, title } : s)));
   };
 
   const updateSubtaskMinutes = (index: number, minutesText: string) => {
     const minutes = parseInt(minutesText, 10);
     setSuggestedSubtasks((prev) =>
-      prev.map((s, i) =>
-        i === index ? { ...s, est_minutes: isNaN(minutes) ? 0 : minutes } : s
-      )
+      prev.map((s, i) => (i === index ? { ...s, est_minutes: isNaN(minutes) ? 0 : minutes } : s))
     );
   };
 
@@ -120,7 +124,12 @@ navigation.navigate('Projects', {
       >
         <View style={styles.topBar}>
           <Text style={styles.appName}>KairOS</Text>
-          <View style={styles.iconPlaceholder} />
+          <RankBadge
+            rank={rankProgress.rank}
+            level={rankProgress.level}
+            currentXp={rankProgress.currentXp}
+            xpRequired={rankProgress.xpRequired}
+          />
         </View>
 
         {screenState === 'review' ? (
@@ -131,10 +140,7 @@ navigation.navigate('Projects', {
             {suggestedSubtasks.map((subtask, index) => (
               <View key={index} style={styles.subtaskPreview}>
                 <View style={styles.reorderColumn}>
-                  <TouchableOpacity
-                    onPress={() => moveSubtask(index, -1)}
-                    disabled={index === 0}
-                  >
+                  <TouchableOpacity onPress={() => moveSubtask(index, -1)} disabled={index === 0}>
                     <Ionicons
                       name="chevron-up"
                       size={18}
@@ -209,9 +215,7 @@ navigation.navigate('Projects', {
 
         {screenState !== 'review' && (
           <View style={styles.addSection}>
-            {screenState === 'error' && (
-              <Text style={styles.errorText}>{errorMessage}</Text>
-            )}
+            {screenState === 'error' && <Text style={styles.errorText}>{errorMessage}</Text>}
 
             <TextInput
               style={styles.input}
@@ -247,7 +251,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0A0A0F', paddingHorizontal: 16 },
   topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 16 },
   appName: { color: '#F5F5F7', fontSize: 22, fontWeight: '600' },
-  iconPlaceholder: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#16161D' },
   card: { backgroundColor: '#16161D', borderRadius: 12, padding: 16, marginTop: 24 },
   cardTitle: { color: '#F5F5F7', fontSize: 18, fontWeight: '600', marginBottom: 8 },
   cardBody: { color: '#A5ABB6', fontSize: 15 },
@@ -260,12 +263,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     marginBottom: 12,
   },
-  ctaButton: {
-    backgroundColor: '#6C5CE7',
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
+  ctaButton: { backgroundColor: '#6C5CE7', borderRadius: 12, paddingVertical: 16, alignItems: 'center' },
   ctaText: { color: '#F5F5F7', fontSize: 15, fontWeight: '600' },
   errorText: { color: '#F87171', fontSize: 14, marginBottom: 8 },
   reviewSection: { flex: 1, marginTop: 16 },
@@ -280,29 +278,11 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     gap: 8,
   },
-  reorderColumn: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 2,
-    paddingTop: 4,
-  },
+  reorderColumn: { justifyContent: 'center', alignItems: 'center', gap: 2, paddingTop: 4 },
   subtaskContent: { flex: 1 },
-  subtaskTitleInput: {
-    color: '#F5F5F7',
-    fontSize: 15,
-    paddingVertical: 2,
-  },
-  subtaskMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
-    gap: 10,
-  },
-  difficultyPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-  },
+  subtaskTitleInput: { color: '#F5F5F7', fontSize: 15, paddingVertical: 2 },
+  subtaskMetaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 10 },
+  difficultyPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
   pillEasy: { backgroundColor: '#10B98133' },
   pillMedium: { backgroundColor: '#F59E0B33' },
   pillHard: { backgroundColor: '#F8717133' },
