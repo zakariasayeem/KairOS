@@ -124,12 +124,14 @@ export default function HomeScreen() {
       >
         <View style={styles.topBar}>
           <Text style={styles.appName}>KairOS</Text>
-          <RankBadge
-            rank={rankProgress.rank}
-            level={rankProgress.level}
-            currentXp={rankProgress.currentXp}
-            xpRequired={rankProgress.xpRequired}
-          />
+          <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
+            <RankBadge
+              rank={rankProgress.rank}
+              level={rankProgress.level}
+              currentXp={rankProgress.currentXp}
+              xpRequired={rankProgress.xpRequired}
+             />
+          </TouchableOpacity>
         </View>
 
         {screenState === 'review' ? (

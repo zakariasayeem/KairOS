@@ -118,8 +118,21 @@ export function applyXPGain(state: RankState, xpGained: number): XPResult {
 export const XP_SOURCES = {
   FOCUS_SESSION_PER_MINUTE: 2,
   FOCUS_SESSION_SOFT_CAP_MINUTES: 90, // diminishing returns past this point
-  SUBTASK_COMPLETE_FLAT: 15,
+  SUBTASK_XP_BY_DIFFICULTY: {
+    easy: 5,
+    medium: 10,
+    hard: 15,
+  },
+  SUBTASK_XP_DEFAULT: 10, // fallback when difficulty is null (manual/unenriched subtasks)
 } as const;
+
+export function getSubtaskCompletionXP(difficulty: string | null): number {
+  if (!difficulty) return XP_SOURCES.SUBTASK_XP_DEFAULT;
+  return (
+    XP_SOURCES.SUBTASK_XP_BY_DIFFICULTY[difficulty as keyof typeof XP_SOURCES.SUBTASK_XP_BY_DIFFICULTY] ??
+    XP_SOURCES.SUBTASK_XP_DEFAULT
+  );
+}
 
 export function calculateFocusSessionXP(durationMinutes: number): number {
   const cappedMinutes = Math.min(durationMinutes, XP_SOURCES.FOCUS_SESSION_SOFT_CAP_MINUTES);

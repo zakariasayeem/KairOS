@@ -1,5 +1,5 @@
 import * as SQLite from 'expo-sqlite';
-import { applyXPGain, xpRequiredForLevel, RankState } from '../features/rank/xpEngine';
+import { applyXPGain, xpRequiredForLevel, getSubtaskCompletionXP, RankState } from '../features/rank/xpEngine';
 
 
 export const db = SQLite.openDatabaseSync('kairos.db');
@@ -123,10 +123,14 @@ export function getSubtasksForProject(projectId: string) {
 }
 
 export function toggleSubtaskComplete(subtaskId: string, isComplete: boolean) {
-  // Check if this subtask has ever earned completion XP before
   const alreadyAwarded = db.getFirstSync<{ count: number }>(
     `SELECT COUNT(*) as count FROM xp_events WHERE source = ?;`,
     [`subtask_complete:${subtaskId}`]
+  );
+
+  const subtask = db.getFirstSync<{ difficulty: string | null }>(
+    `SELECT difficulty FROM subtasks WHERE id = ?;`,
+    [subtaskId]
   );
 
   db.runSync(`UPDATE subtasks SET is_complete = ? WHERE id = ?;`, [
@@ -135,7 +139,8 @@ export function toggleSubtaskComplete(subtaskId: string, isComplete: boolean) {
   ]);
 
   if (isComplete && (alreadyAwarded?.count ?? 0) === 0) {
-    awardXP(`subtask_complete:${subtaskId}`, 15);
+    const xpAmount = getSubtaskCompletionXP(subtask?.difficulty ?? null);
+    awardXP(`subtask_complete:${subtaskId}`, xpAmount);
   }
 }
 export function updateSubtask(
@@ -249,4 +254,12 @@ export function getRankProgress() {
     xpRequired: required,
     totalLifetimeXp: rank.total_lifetime_xp,
   };
+}
+export function getRecentXPEvents(limit: number = 20) {
+  return db.getAllSync<{
+    id: string;
+    source: string;
+    amount: number;
+    created_at: string;
+  }>('SELECT * FROM xp_events ORDER BY created_at DESC LIMIT ?;', [limit]);
 }

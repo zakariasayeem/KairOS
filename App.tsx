@@ -11,11 +11,13 @@ import ProjectDetailScreen from './screens/ProjectDetailScreen';
 import FocusScreen from './screens/FocusScreen';
 import InsightsScreen from './screens/InsightsScreen';
 import { initDatabase } from './db/database';
+import ProfileScreen from './screens/ProfileScreen';
 
 initDatabase();
 
 const Tab = createBottomTabNavigator();
 const ProjectsStack = createNativeStackNavigator();
+const HomeStack = createNativeStackNavigator();
 
 function ProjectsStackScreen() {
   return (
@@ -28,6 +30,19 @@ function ProjectsStackScreen() {
       <ProjectsStack.Screen name="ProjectsList" component={ProjectsScreen} />
       <ProjectsStack.Screen name="ProjectDetail" component={ProjectDetailScreen} />
     </ProjectsStack.Navigator>
+  );
+}
+function HomeStackScreen() {
+  return (
+    <HomeStack.Navigator
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: '#0A0A0F' },
+      }}
+    >
+      <HomeStack.Screen name="HomeMain" component={HomeScreen} />
+      <HomeStack.Screen name="Profile" component={ProfileScreen} />
+    </HomeStack.Navigator>
   );
 }
 
@@ -61,7 +76,7 @@ export default function App() {
           },
         })}
       >
-        <Tab.Screen name="Home" component={HomeScreen} />
+        <Tab.Screen name="Home" component={HomeStackScreen} />
 
         <Tab.Screen
           name="Projects"
