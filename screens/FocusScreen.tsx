@@ -14,6 +14,8 @@ import {
 import { colors, radius } from '../theme/tokens';
 import { calculateFocusSessionXP } from '../features/rank/xpEngine';
 import { awardXP } from '../db/database';
+import LevelUpToast from '../components/LevelUpToast';
+import RankUpModal from '../components/RankUpModal';
 
 type Project = { id: string; name: string; color: string };
 type Subtask = { id: string; title: string; is_complete: number; parent_subtask_id: string | null; est_minutes: number | null };
@@ -50,6 +52,11 @@ export default function FocusScreen() {
 
   const phaseEndRef = useRef<number>(Date.now() + DEFAULT_WORK_MINUTES * 60 * 1000);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const [showLevelToast, setShowLevelToast] = useState(false);
+  const [levelToastValue, setLevelToastValue] = useState(1);
+  const [showRankModal, setShowRankModal] = useState(false);
+  const [rankModalValue, setRankModalValue] = useState('D');
 
   // Keep the screen awake only while an active session is running
   useKeepAwake(sessionStarted ? 'kairos-focus' : undefined);
@@ -142,14 +149,23 @@ export default function FocusScreen() {
     endFocusSession(sessionId, workMinutes);
     const xpEarned = calculateFocusSessionXP(workMinutes);
     const xpResult = awardXP('focus_session', xpEarned);
-    console.log('XP awarded:', xpEarned, xpResult); // temporary, for verification
+
+    if (xpResult.rankedUp) {
+      setRankModalValue(xpResult.newState.rank);
+      setShowRankModal(true);
+    } else if (xpResult.leveledUp) {
+      setLevelToastValue(xpResult.newState.level);
+      setShowLevelToast(true);
+    }
+
     if (selectedSubtaskId) {
       setCompletedCount(getCompletedSessionCount(selectedSubtaskId));
     }
   }
   setSessionId(null);
   setShowBreakChoice(true);
-} else {
+}
+ else {
       const newSessionId = startFocusSession(selectedSubtaskId, 'pomodoro');
       setSessionId(newSessionId);
       setPhase('work');
@@ -360,6 +376,14 @@ export default function FocusScreen() {
           </>
         )}
       </View>
+    {showLevelToast && (
+        <LevelUpToast level={levelToastValue} onHide={() => setShowLevelToast(false)} />
+      )}
+      <RankUpModal
+        visible={showRankModal}
+        rank={rankModalValue}
+        onDismiss={() => setShowRankModal(false)}
+      />
     </SafeAreaView>
   );
 }
