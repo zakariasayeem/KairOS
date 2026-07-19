@@ -263,3 +263,27 @@ export function getRecentXPEvents(limit: number = 20) {
     created_at: string;
   }>('SELECT * FROM xp_events ORDER BY created_at DESC LIMIT ?;', [limit]);
 }
+export function getFocusStats(rangeStart: string) {
+  const result = db.getFirstSync<{
+    totalSessions: number;
+    totalMinutes: number | null;
+    avgMinutes: number | null;
+    bestMinutes: number | null;
+  }>(
+    `SELECT
+      COUNT(*) as totalSessions,
+      SUM(duration_minutes) as totalMinutes,
+      AVG(duration_minutes) as avgMinutes,
+      MAX(duration_minutes) as bestMinutes
+     FROM focus_sessions
+     WHERE end_time IS NOT NULL AND mode = 'pomodoro' AND start_time >= ?;`,
+    [rangeStart]
+  );
+
+  return {
+    totalSessions: result?.totalSessions ?? 0,
+    totalMinutes: result?.totalMinutes ?? 0,
+    avgMinutes: Math.round(result?.avgMinutes ?? 0),
+    bestMinutes: result?.bestMinutes ?? 0,
+  };
+}
